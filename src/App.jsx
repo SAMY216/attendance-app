@@ -736,19 +736,19 @@ export default function Attendance() {
           </select>
         </div>
 
-        <div className="grid grid-cols-7 gap-2 text-sm">
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2 text-center">
           {preview.map((p) => (
-            <div key={p.dayKey} className="p-2 border rounded">
+            <div key={p.dayKey} className="p-2 border rounded min-w-fit">
               <div className="font-semibold">
                 {new Date(p.dateStr).getDate()}
               </div>
               {p.rec ? (
-                <>
+                <div className="w-fit">
                   <div className="text-xs">{formatTime12(p.rec.attend)}</div>
                   <div className="text-xs">
                     {p.rec.leave ? formatTime12(p.rec.leave) : "--"}
                   </div>
-                </>
+                </div>
               ) : (
                 <div className="text-xs text-gray-400">—</div>
               )}
