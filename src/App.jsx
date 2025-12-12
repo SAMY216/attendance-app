@@ -263,6 +263,16 @@ export default function Attendance() {
     setAttendances(updated);
   };
 
+  // Delete a record permanently
+  const deleteRecord = (id) => {
+    const rec = attendances.find((a) => a.id === id);
+    const label = rec ? formatDateGB(rec.attend) || rec.day : "this record";
+    if (!confirm(`Delete record for ${label}? This cannot be undone.`)) return;
+    const updated = attendances.filter((a) => a.id !== id);
+    localStorage.setItem("attendance", JSON.stringify(updated));
+    setAttendances(updated);
+  };
+
   /* ---------- Edit ---------- */
 
   const startEdit = (record) => {
@@ -292,7 +302,6 @@ export default function Attendance() {
       if (a.id !== id) return a;
 
       const attDate = parseLocal(a.attend);
-      let leaveDate = a.leave ? parseLocal(a.leave) : null;
 
       let newAttend = a.attend;
       let newLeave = a.leave;
@@ -321,40 +330,8 @@ export default function Attendance() {
       return { ...a, attend: newAttend, leave: newLeave };
     });
 
-    // After edit, optionally add previous day if logic requires (kept from earlier behavior)
-    const editedRecord = updated.find((a) => a.id === id);
-    if (editedRecord) {
-      const editedDate = parseLocal(editedRecord.attend);
-      const prevDate = new Date(editedDate);
-      prevDate.setDate(prevDate.getDate() - 1);
-      const prevDayKey = prevDate.toDateString();
-      const exists = updated.some((x) => x.day === prevDayKey);
-      // only auto-create previous day if edited record is not the latest (preserve prior logic)
-      const sortedDesc = [...updated].sort(
-        (a, b) => parseLocal(b.attend) - parseLocal(a.attend)
-      );
-      const newest = sortedDesc[sortedDesc.length - 1];
-      if (editedRecord.id !== newest.id && !exists) {
-        const autoAttend = `${prevDate.getFullYear()}-${String(
-          prevDate.getMonth() + 1
-        ).padStart(2, "0")}-${String(prevDate.getDate()).padStart(2, "0")} ${
-          editAttend || "00:00"
-        }`;
-        const autoLeave = `${prevDate.getFullYear()}-${String(
-          prevDate.getMonth() + 1
-        ).padStart(2, "0")}-${String(prevDate.getDate()).padStart(
-          2,
-          "0"
-        )} 00:00`;
-        const autoRecord = {
-          id: Date.now() + 999,
-          day: prevDayKey,
-          attend: autoAttend,
-          leave: autoLeave,
-        };
-        updated = [...updated, autoRecord];
-      }
-    }
+    // NOTE: previously the app auto-created a previous-day record after edits.
+    // That behavior has been removed. Edits no longer create extra records.
 
     localStorage.setItem("attendance", JSON.stringify(updated));
     setAttendances(updated);
@@ -472,6 +449,15 @@ export default function Attendance() {
     const { year, month } = calendarMonth;
     // produce array of days for the month
     const daysInMonth = new Date(year, month, 0).getDate();
+    // find the latest recorded datetime in attendances (attend field preferred, fallback to day)
+    let maxRecorded = null;
+    for (const a of attendances) {
+      let d = null;
+      if (a.attend) d = parseLocal(a.attend);
+      else if (a.day) d = new Date(a.day);
+      if (d && (!maxRecorded || d > maxRecorded)) maxRecorded = d;
+    }
+
     const arr = [];
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(
@@ -479,7 +465,7 @@ export default function Attendance() {
       ).padStart(2, "0")}`;
       const dayKey = new Date(dateStr).toDateString();
       const rec = attendances.find((a) => a.day === dayKey);
-      arr.push({ dateStr, dayKey, rec });
+      arr.push({ dateStr, dayKey, rec, maxRecorded });
     }
     return arr;
   };
@@ -521,6 +507,7 @@ export default function Attendance() {
                 <th className="p-2 border">Hours</th>
                 <th className="p-2 border">Overtime</th>
                 <th className="p-2 border">Edit</th>
+                <th className="p-2 border">Delete</th>
               </tr>
             </thead>
 
@@ -612,6 +599,14 @@ export default function Attendance() {
                             Edit
                           </button>
                         )}
+                      </td>
+                      <td className="border p-2">
+                        <button
+                          className="px-3 py-1 bg-red-600 text-white rounded"
+                          onClick={() => deleteRecord(a.id)}
+                        >
+                          Delete
+                        </button>
                       </td>
                     </tr>
                   );
@@ -742,12 +737,18 @@ export default function Attendance() {
               <div className="font-semibold">
                 {new Date(p.dateStr).getDate()}
               </div>
+
               {p.rec ? (
                 <div className="w-fit">
                   <div className="text-xs">{formatTime12(p.rec.attend)}</div>
                   <div className="text-xs">
                     {p.rec.leave ? formatTime12(p.rec.leave) : "--"}
                   </div>
+                </div>
+              ) : // if no record AND the day is before the latest recorded day -> treat as holiday (visual only)
+              p.maxRecorded && new Date(p.dateStr) < new Date(p.maxRecorded) ? (
+                <div className="text-xs text-red-600 font-semibold">
+                  Holiday
                 </div>
               ) : (
                 <div className="text-xs text-gray-400">—</div>
