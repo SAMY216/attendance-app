@@ -399,10 +399,20 @@ export default function Attendance() {
 
   /* ---------- Monthly totals ---------- */
 
-  const totalHoursMonth = attendances
+  // Filter attendances for the currently selected calendar month
+  const filteredAttendances = attendances.filter((a) => {
+    if (!a.attend) return false;
+    const d = parseLocal(a.attend);
+    return (
+      d.getFullYear() === calendarMonth.year &&
+      d.getMonth() + 1 === calendarMonth.month
+    );
+  });
+
+  const totalHoursMonth = filteredAttendances
     .map((a) => calculateHours(a.attend, a.leave))
     .reduce((s, h) => s + h, 0);
-  const totalOvertimeMonth = attendances
+  const totalOvertimeMonth = filteredAttendances
     .map((a) => calculateHours(a.attend, a.leave) - shiftHours)
     .filter((x) => x > 0)
     .reduce((s, h) => s + h, 0);
@@ -494,6 +504,38 @@ export default function Attendance() {
         </button>
       </div>
 
+      {/* Month selector for filtering the main table and preview */}
+      <div className="flex gap-2 items-center mb-4">
+        <label className="font-semibold">Month:</label>
+        <select
+          value={`${calendarMonth.year}-${String(calendarMonth.month).padStart(
+            2,
+            "0"
+          )}`}
+          onChange={(e) => {
+            const [y, m] = e.target.value.split("-").map(Number);
+            setCalendarMonth({ year: y, month: m });
+          }}
+          className="border p-1 rounded"
+        >
+          {/* last 6 months */}
+          {Array.from({ length: 6 }).map((_, i) => {
+            const d = new Date();
+            d.setMonth(d.getMonth() - i);
+            const y = d.getFullYear();
+            const m = d.getMonth() + 1;
+            return (
+              <option
+                key={`${y}-${m}`}
+                value={`${y}-${String(m).padStart(2, "0")}`}
+              >
+                {d.toLocaleString("en-GB", { month: "long" })} {y}
+              </option>
+            );
+          })}
+        </select>
+      </div>
+
       {loading ? (
         <p>Loading...</p>
       ) : (
@@ -512,7 +554,7 @@ export default function Attendance() {
             </thead>
 
             <tbody>
-              {attendances
+              {filteredAttendances
                 .slice()
                 .sort((a, b) => parseLocal(b.attend) - parseLocal(a.attend))
                 .map((a) => {
@@ -701,35 +743,6 @@ export default function Attendance() {
       {/* Monthly calendar preview */}
       <div className="mt-6 p-4 bg-white border rounded shadow">
         <h3 className="font-bold mb-2">Monthly Preview</h3>
-
-        <div className="flex gap-2 mb-3 items-center">
-          <select
-            value={`${calendarMonth.year}-${String(
-              calendarMonth.month
-            ).padStart(2, "0")}`}
-            onChange={(e) => {
-              const [y, m] = e.target.value.split("-").map(Number);
-              setCalendarMonth({ year: y, month: m });
-            }}
-            className="border p-1 rounded"
-          >
-            {/* last 6 months */}
-            {Array.from({ length: 6 }).map((_, i) => {
-              const d = new Date();
-              d.setMonth(d.getMonth() - i);
-              const y = d.getFullYear();
-              const m = d.getMonth() + 1;
-              return (
-                <option
-                  key={`${y}-${m}`}
-                  value={`${y}-${String(m).padStart(2, "0")}`}
-                >
-                  {d.toLocaleString("en-GB", { month: "long" })} {y}
-                </option>
-              );
-            })}
-          </select>
-        </div>
 
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2 text-center">
           {preview.map((p) => (
