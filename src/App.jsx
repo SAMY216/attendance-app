@@ -744,9 +744,9 @@ export default function Attendance() {
       <div className="mt-6 p-4 bg-white border rounded shadow">
         <h3 className="font-bold mb-2">Monthly Preview</h3>
 
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-7 gap-2 text-center">
+        <div className="grid grid-cols-7 gap-1 md:gap-2 text-center">
           {preview.map((p) => (
-            <div key={p.dayKey} className="p-2 border rounded min-w-fit">
+            <div key={p.dayKey} className="p-1 md:p-2 border rounded min-w-fit text-center">
               <div className="font-semibold">
                 {new Date(p.dateStr).getDate()}
               </div>
