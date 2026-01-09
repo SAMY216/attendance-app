@@ -753,7 +753,7 @@ export default function Attendance() {
 
               {p.rec ? (
                 <div className="w-fit">
-                  <div className="text-xs">{formatTime12(p.rec.attend)}</div>
+                  <div className="text-xs border-b-2">{formatTime12(p.rec.attend)}</div>
                   <div className="text-xs">
                     {p.rec.leave ? formatTime12(p.rec.leave) : "--"}
                   </div>
