@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import * as XLSX from "xlsx";
+import ExcelExport from "./ExcelExport";
 
 const localDatetimeString = (dateObj) => {
   const yyyy = dateObj.getFullYear();
@@ -41,167 +41,17 @@ const calculateHours = (attend, leave) => {
   return diff > 0 ? diff : 0;
 };
 
-/* -------------------- ExcelExport (inline) -------------------- */
-
-function ExcelExport({ attendances }) {
-  const [range, setRange] = useState("");
-  const [options, setOptions] = useState([]);
-
-  // Build range options (1-15, 16-end) for months present
-  useEffect(() => {
-    if (!attendances || !attendances.length) {
-      setOptions([]);
-      return;
-    }
-    const dates = attendances.map((a) => parseLocal(a.attend));
-    const grouped = {};
-    dates.forEach((d) => {
-      const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(d);
-    });
-
-    const newOptions = [];
-    for (const key in grouped) {
-      const [year, month] = key.split("-").map(Number);
-      const monthDates = grouped[key];
-      const lastDay = new Date(year, month, 0).getDate();
-
-      if (monthDates.some((d) => d.getDate() >= 1 && d.getDate() <= 15)) {
-        newOptions.push({
-          label: `1/${month} - 15/${month} ${year}`,
-          value: `${year}-${month}-1-15`,
-        });
-      }
-      if (monthDates.some((d) => d.getDate() >= 16 && d.getDate() <= lastDay)) {
-        newOptions.push({
-          label: `16/${month} - ${lastDay}/${month} ${year}`,
-          value: `${year}-${month}-16-${lastDay}`,
-        });
-      }
-    }
-    setOptions(newOptions);
-  }, [attendances]);
-
-  // 12-hour helper for "HH:MM"
-  function to12HourFromHHMM(hhmm) {
-    if (!hhmm) return "12:00 AM";
-    const [h, m] = hhmm.split(":").map(Number);
-    const suffix = h >= 12 ? "PM" : "AM";
-    const hh = h % 12 || 12;
-    return `${hh}:${String(m).padStart(2, "0")} ${suffix}`;
-  }
-
-  const exportExcel = () => {
-    if (!range) return alert("Please select a range first.");
-    const [year, month, startDay, endDay] = range.split("-").map(Number);
-
-    const filtered = attendances.filter((a) => {
-      const d = parseLocal(a.attend);
-      return (
-        d.getFullYear() === year &&
-        d.getMonth() + 1 === month &&
-        d.getDate() >= startDay &&
-        d.getDate() <= endDay
-      );
-    });
-
-    if (!filtered.length) return alert("No records in this range.");
-
-    filtered.sort((a, b) => parseLocal(a.attend) - parseLocal(b.attend));
-
-    const sheetData = filtered.map((a) => {
-      const d = parseLocal(a.attend);
-      const day = d.toLocaleDateString("en-GB"); // DD/MM/YYYY
-      const attendTimeRaw = a.attend.split(" ")[1] || "00:00";
-      const leaveTimeRaw = a.leave ? a.leave.split(" ")[1] : "00:00";
-      return {
-        Date: day,
-        Attend: to12HourFromHHMM(attendTimeRaw),
-        Leave: to12HourFromHHMM(leaveTimeRaw),
-      };
-    });
-
-    const ws = XLSX.utils.json_to_sheet(sheetData);
-
-    // Autofit columns by longest content
-    const colWidths = Object.keys(sheetData[0]).map((key) => {
-      const maxLength = Math.max(
-        key.length,
-        ...sheetData.map((row) => (row[key] ? row[key].toString().length : 0))
-      );
-      return { wch: maxLength + 2 };
-    });
-    ws["!cols"] = colWidths;
-
-    // Basic styling: font size + bold headers + center align + borders
-    const border = {
-      top: { style: "thin", color: { rgb: "000000" } },
-      bottom: { style: "thin", color: { rgb: "000000" } },
-      left: { style: "thin", color: { rgb: "000000" } },
-      right: { style: "thin", color: { rgb: "000000" } },
-    };
-
-    Object.keys(ws).forEach((cell) => {
-      if (cell[0] === "!") return;
-      ws[cell].s = ws[cell].s || {};
-      ws[cell].s.font = { sz: 14 };
-      ws[cell].s.alignment = { horizontal: "center", vertical: "center" };
-      ws[cell].s.border = border;
-    });
-
-    // Header style
-    const headerRow = Object.keys(sheetData[0]);
-    for (let i = 0; i < headerRow.length; i++) {
-      const cell = XLSX.utils.encode_cell({ r: 0, c: i }); // A1, B1...
-      ws[cell].s = {
-        font: { bold: true, sz: 14, color: { rgb: "FFFFFF" } },
-        fill: { fgColor: { rgb: "4F81BD" } },
-        alignment: { horizontal: "center", vertical: "center" },
-        border,
-      };
-    }
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `${startDay}-${endDay}_${month}`);
-    XLSX.writeFile(
-      wb,
-      `Attendance_${year}_${month}_${startDay}-${endDay}.xlsx`
-    );
-  };
-
-  return (
-    <div className="mt-4">
-      <div className="flex gap-2 items-center mb-2">
-        <label className="font-semibold">Select Range:</label>
-        <select
-          className="border rounded px-2 py-1"
-          value={range}
-          onChange={(e) => setRange(e.target.value)}
-        >
-          <option value="">-- Select --</option>
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
-
-        <button
-          className="px-3 py-1 bg-green-600 text-white rounded ml-2"
-          onClick={exportExcel}
-        >
-          Download Excel
-        </button>
-      </div>
-    </div>
-  );
-}
+// Excel export implementation was moved to `src/ExcelExport.jsx` (PDF export).
 
 /* -------------------- Main Attendance Component -------------------- */
 
 export default function Attendance() {
   const [attendances, setAttendances] = useState([]);
+  // persisted user name for exports
+  const [user, setUser] = useState(
+    () => localStorage.getItem("attendanceUser") || "",
+  );
+  const [userInput, setUserInput] = useState(user || "");
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null);
   const [editAttend, setEditAttend] = useState("");
@@ -221,16 +71,16 @@ export default function Attendance() {
   const shiftHours = 8;
   const isOvertime = (h) => h > shiftHours;
 
-  useEffect(() => {
-    loadAttendance();
-  }, []);
-
-  const loadAttendance = () => {
+  function loadAttendance() {
     setLoading(true);
     const stored = JSON.parse(localStorage.getItem("attendance") || "[]");
     setAttendances(stored);
     setLoading(false);
-  };
+  }
+
+  useEffect(() => {
+    loadAttendance();
+  }, []);
 
   /* ---------- Basic actions ---------- */
 
@@ -257,7 +107,7 @@ export default function Attendance() {
     const now = new Date();
     // find record, set leave possibly next day if needed (here using now so it's correct)
     const updated = attendances.map((a) =>
-      a.id === id ? { ...a, leave: localDatetimeString(now) } : a
+      a.id === id ? { ...a, leave: localDatetimeString(now) } : a,
     );
     localStorage.setItem("attendance", JSON.stringify(updated));
     setAttendances(updated);
@@ -284,16 +134,16 @@ export default function Attendance() {
     setEditAttend(
       attend
         ? `${String(attend.getHours()).padStart(2, "0")}:${String(
-            attend.getMinutes()
+            attend.getMinutes(),
           ).padStart(2, "0")}`
-        : ""
+        : "",
     );
     setEditLeave(
       leave
         ? `${String(leave.getHours()).padStart(2, "0")}:${String(
-            leave.getMinutes()
+            leave.getMinutes(),
           ).padStart(2, "0")}`
-        : ""
+        : "",
     );
   };
 
@@ -471,7 +321,7 @@ export default function Attendance() {
     const arr = [];
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(
-        d
+        d,
       ).padStart(2, "0")}`;
       const dayKey = new Date(dateStr).toDateString();
       const rec = attendances.find((a) => a.day === dayKey);
@@ -487,7 +337,61 @@ export default function Attendance() {
   return (
     <div className="p-4">
       <h2 className="font-bold text-2xl mb-4">Attendance</h2>
+      {/* User input for PDF header */}
+      <div className="mb-4">
+        {user ? (
+          <div className="flex items-center gap-3">
+            <span className="font-semibold">User: {user}</span>
+            <button
+              className="px-2 py-1 bg-gray-300 rounded"
+              onClick={() => {
+                // enable editing: populate input with current name and switch to edit mode
+                setUserInput(user || "");
+                setUser("");
+              }}
+            >
+              Edit
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-2 items-center">
+            <input
+              className="border p-1 rounded"
+              placeholder="Enter name for export"
+              value={userInput}
+              onChange={(e) => setUserInput(e.target.value)}
+            />
+            <button
+              className="px-3 py-1 bg-blue-600 text-white rounded"
+              onClick={() => {
+                const trimmed = (userInput || "").trim();
+                // allow empty (no user stored)
+                if (!trimmed) {
+                  setUser("");
+                  setUserInput("");
+                  localStorage.removeItem("attendanceUser");
+                  return;
+                }
 
+                // Validate: English letters and spaces only, length 3-20
+                const valid = /^[A-Za-z ]{3,20}$/.test(trimmed);
+                if (!valid) {
+                  alert(
+                    "Name must be 3–20 characters and contain only English letters and spaces (no numbers or symbols).",
+                  );
+                  return;
+                }
+
+                setUser(trimmed);
+                setUserInput(trimmed);
+                localStorage.setItem("attendanceUser", trimmed);
+              }}
+            >
+              Save
+            </button>
+          </div>
+        )}
+      </div>
       <div className="flex gap-2 mb-4">
         <button
           className="px-4 py-2 bg-blue-600 text-white rounded"
@@ -510,7 +414,7 @@ export default function Attendance() {
         <select
           value={`${calendarMonth.year}-${String(calendarMonth.month).padStart(
             2,
-            "0"
+            "0",
           )}`}
           onChange={(e) => {
             const [y, m] = e.target.value.split("-").map(Number);
@@ -608,7 +512,7 @@ export default function Attendance() {
                             {Math.trunc(hours - shiftHours) +
                               ":" +
                               String(
-                                Math.round(((hours - shiftHours) % 1) * 60)
+                                Math.round(((hours - shiftHours) % 1) * 60),
                               ).padStart(2, "0")}
                             h
                           </span>
@@ -746,14 +650,19 @@ export default function Attendance() {
 
         <div className="grid grid-cols-5 md:grid-cols-7 gap-1 md:gap-2 text-center w-full">
           {preview.map((p) => (
-            <div key={p.dayKey} className="p-1 md:p-2 border rounded min-w-fit text-center">
+            <div
+              key={p.dayKey}
+              className="p-1 md:p-2 border rounded min-w-fit text-center"
+            >
               <div className="font-semibold">
                 {new Date(p.dateStr).getDate()}
               </div>
 
               {p.rec ? (
                 <div className="w-fit">
-                  <div className="text-xs border-b-2">{formatTime12(p.rec.attend)}</div>
+                  <div className="text-xs border-b-2">
+                    {formatTime12(p.rec.attend)}
+                  </div>
                   <div className="text-xs">
                     {p.rec.leave ? formatTime12(p.rec.leave) : "--"}
                   </div>
@@ -771,7 +680,7 @@ export default function Attendance() {
         </div>
       </div>
 
-      <ExcelExport attendances={attendances} />
+      <ExcelExport attendances={attendances} user={user} />
     </div>
   );
 }
