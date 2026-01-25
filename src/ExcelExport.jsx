@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { saveAs } from "file-saver";
 
 export default function ExcelExport({ attendances, user }) {
-  const [range, setRange] = useState("");
-  const [options, setOptions] = useState([]);
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   function to12Hour(time) {
     if (!time) return "12:00 AM";
@@ -15,66 +15,63 @@ export default function ExcelExport({ attendances, user }) {
       .padStart(2, "0")} ${suffix}`;
   }
 
-  useEffect(() => {
-    if (!attendances || !attendances.length) return;
+  // compute today's date string for max attributes
+  const todayStr = new Date().toISOString().slice(0, 10);
 
-    // Convert attendances to Date objects
-    const dates = attendances.map((a) => new Date(a.attend.replace(" ", "T")));
-
-    // Group by month/year
-    const grouped = {};
-    dates.forEach((d) => {
-      const key = `${d.getFullYear()}-${d.getMonth() + 1}`;
-      if (!grouped[key]) grouped[key] = [];
-      grouped[key].push(d);
-    });
-
-    const newOptions = [];
-    for (const key in grouped) {
-      const [year, month] = key.split("-").map(Number);
-      const monthDates = grouped[key];
-      const lastDay = new Date(year, month, 0).getDate();
-
-      if (monthDates.some((d) => d.getDate() >= 1 && d.getDate() <= 15)) {
-        newOptions.push({
-          label: `1/${month} - 15/${month} ${year}`,
-          value: `${year}-${month}-1-15`,
-        });
+  // derive minimum date from localStorage (earliest attendance stored)
+  function getMinDateFromStorage() {
+    try {
+      const stored = JSON.parse(localStorage.getItem("attendance") || "[]");
+      if (!stored || !stored.length) return "";
+      let min = null;
+      for (const a of stored) {
+        if (a.attend) {
+          const d = a.attend.split(" ")[0];
+          if (!min || d < min) min = d;
+        } else if (a.day) {
+          const dt = new Date(a.day);
+          if (!isNaN(dt)) {
+            const iso = dt.toISOString().slice(0, 10);
+            if (!min || iso < min) min = iso;
+          }
+        }
       }
-      if (monthDates.some((d) => d.getDate() >= 16 && d.getDate() <= lastDay)) {
-        newOptions.push({
-          label: `16/${month} - ${lastDay}/${month} ${year}`,
-          value: `${year}-${month}-16-${lastDay}`,
-        });
-      }
+      return min || "";
+    } catch (err) {
+      console.debug("Failed to read attendance from localStorage", err);
+      return "";
     }
+  }
 
-    // Avoid calling setState synchronously inside effect to prevent cascading renders
-    setTimeout(() => setOptions(newOptions), 0);
-  }, [attendances]);
+  const minStoredDate = getMinDateFromStorage();
 
   const exportPdf = async () => {
-    if (!range) return alert("Please select a range first.");
+    if (!startDate || !endDate)
+      return alert("Please select both start and end dates first.");
 
-    const [year, month, startDay, endDay] = range.split("-").map(Number);
+    // if end < start, swap silently
+    let s = startDate;
+    let e = endDate;
+    if (e < s) {
+      const tmp = s;
+      s = e;
+      e = tmp;
+    }
+
+    const startBound = new Date(`${s}T00:00:00`);
+    const endBound = new Date(`${e}T23:59:59`);
 
     const filtered = attendances.filter((a) => {
       const d = new Date(a.attend.replace(" ", "T"));
-      return (
-        d.getFullYear() === year &&
-        d.getMonth() + 1 === month &&
-        d.getDate() >= startDay &&
-        d.getDate() <= endDay
-      );
+      return d >= startBound && d <= endBound;
     });
 
     if (!filtered.length) return alert("No records in this range.");
 
-    // sort ascending
-    filtered.sort(
-      (a, b) =>
-        new Date(a.attend.replace(" ", "T")) -
-        new Date(b.attend.replace(" ", "T")),
+    // sort ascending by attend datetime
+    filtered.sort((a, b) =>
+      new Date(a.attend.replace(" ", "T")) -
+      new Date(b.attend.replace(" ", "T")),
     );
 
     const rows = filtered.map((a) => {
@@ -284,9 +281,9 @@ export default function ExcelExport({ attendances, user }) {
       tableHeader: { fontSize: 12, bold: true, color: "#000000" },
     };
 
-    // generate and download using getBlob + file-saver to avoid pdfMake internal
-    // download/iframe reuse issues that sometimes require a reload to work again.
-    const filename = `Attendance_${startDay}-${endDay}_${month}_${year}.pdf`;
+  // generate and download using getBlob + file-saver to avoid pdfMake internal
+  // download/iframe reuse issues that sometimes require a reload to work again.
+  const filename = `Attendance_${s}_${e}.pdf`;
     try {
       pdfMakeLib.createPdf(docDefinition).getBlob((blob) => {
         try {
@@ -307,20 +304,34 @@ export default function ExcelExport({ attendances, user }) {
   return (
     <div className="mt-4">
       <div className="flex gap-2 items-center mb-2">
-        <label className="font-semibold">Select Range:</label>
-        <select
+        <label className="font-semibold">Start Date:</label>
+        <input
+          type="date"
           className="border rounded px-2 py-1"
-          value={range}
-          onChange={(e) => setRange(e.target.value)}
-        >
-          <option value="">-- Select --</option>
-          {options.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+          value={startDate}
+          onChange={(e) => setStartDate(e.target.value)}
+          max={todayStr}
+          min={minStoredDate || undefined}
+        />
+
+        <label className="font-semibold">End Date:</label>
+        <input
+          type="date"
+          className="border rounded px-2 py-1"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          max={todayStr}
+          min={minStoredDate || undefined}
+        />
       </div>
+
+      {minStoredDate ? (
+        <div className="text-xs text-gray-500 mb-2">
+          Earliest stored record: <span className="font-medium">{minStoredDate}</span>
+        </div>
+      ) : (
+        <div className="text-xs text-gray-500 mb-2">No stored attendance records.</div>
+      )}
 
       <button
         className="px-4 py-2 bg-green-600 text-white rounded"
