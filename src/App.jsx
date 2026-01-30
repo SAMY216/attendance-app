@@ -203,14 +203,14 @@ export default function Attendance() {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const limit = new Date(today);
-    limit.setDate(limit.getDate() - 30);
+    limit.setDate(limit.getDate() - 90);
 
-    if (selectedDate >= today) {
-      alert("You cannot add today or any future date.");
+    if (selectedDate > today) {
+      alert("You cannot add any future date.");
       return;
     }
     if (selectedDate < limit) {
-      alert("You can only add days from the past 30 days.");
+      alert("You can only add days from the past 90 days.");
       return;
     }
 
