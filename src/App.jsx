@@ -199,7 +199,9 @@ export default function Attendance() {
     }
 
     // Date rules
-    const selectedDate = new Date(newDay);
+  // Construct selected date at local midnight to avoid UTC parsing issues
+  // when using `new Date("YYYY-MM-DD")` (which can shift by timezone).
+  const selectedDate = new Date(`${newDay}T00:00:00`);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const limit = new Date(today);
@@ -574,7 +576,7 @@ export default function Attendance() {
         {showAddDay && (
           <div className="p-4 mb-4 border rounded bg-white shadow">
             <h3 className="font-bold text-lg mb-2">
-              Add New Day (past 30 days only)
+              Add New Day (past 90 days only)
             </h3>
 
             <div className="mb-2">
